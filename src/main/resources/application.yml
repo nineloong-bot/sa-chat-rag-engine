@@ -1,0 +1,81 @@
+spring:
+  application:
+    name: sa-intelligent-assistant
+
+  profiles:
+    active: dev
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          time_zone: Asia/Shanghai
+
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+    default-property-inclusion: non_null
+
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 100MB
+
+  cache:
+    type: redis
+    redis:
+      time-to-live: 30m
+      cache-null-values: false
+      key-prefix: "sa:cache:"
+
+server:
+  port: 8080
+  servlet:
+    context-path: /api/v1
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+
+app:
+  upload:
+    dir: /tmp/sa-uploads
+  cache:
+    caffeine:
+      max-size: 500
+      expire-after-write: 5m
+    redis:
+      ttl: 30m
+    chat-history:
+      caffeine-ttl: 3m
+      redis-ttl: 20m
+
+spring.ai:
+  openai:
+    base-url: ${OPENAI_BASE_URL:https://api.openai.com}
+    api-key: ${OPENAI_API_KEY}
+    chat:
+      options:
+        model: ${OPENAI_MODEL:gpt-4o}
+        temperature: 0.7
+        max-tokens: 4096
+    embedding:
+      options:
+        model: ${EMBEDDING_MODEL:text-embedding-3-small}
+  vectorstore:
+    chroma:
+      client:
+        host: http://localhost
+        port: 8000
+        key-token: ${CHROMA_TOKEN:sa_chroma_2026}
+      collection-name: sa_documents
+      initialize-schema: true

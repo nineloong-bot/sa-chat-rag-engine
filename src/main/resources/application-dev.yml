@@ -1,0 +1,64 @@
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/sa_assistant?useUnicode=true&characterEncoding=utf-8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
+    username: ${MYSQL_USER:sa_user}
+    password: ${MYSQL_PASSWORD:sa_pass_2026}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      idle-timeout: 300000
+      connection-timeout: 20000
+      max-lifetime: 1200000
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: ${REDIS_PASSWORD:sa_redis_2026}
+      timeout: 5000
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 2
+          max-wait: -1
+
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: ${RABBITMQ_USER:sa_admin}
+    password: ${RABBITMQ_PASSWORD:sa_rabbit_2026}
+    virtual-host: ${RABBITMQ_VHOST:sa_vhost}
+    listener:
+      simple:
+        acknowledge-mode: manual
+        prefetch: 10
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 1000
+
+  jpa:
+    show-sql: true
+
+spring.ai:
+  openai:
+    base-url: ${OPENAI_BASE_URL:https://api.deepseek.com}
+    api-key: ${OPENAI_API_KEY}
+    chat:
+      options:
+        model: ${OPENAI_MODEL:deepseek-chat}
+        temperature: 0.7
+        max-tokens: 4096
+    embedding:
+      base-url: ${EMBEDDING_BASE_URL:https://api.siliconflow.cn/v1}
+      api-key: ${EMBEDDING_API_KEY:}
+      options:
+        model: ${EMBEDDING_MODEL:BAAI/bge-m3}
+
+logging:
+  level:
+    com.sa.assistant: DEBUG
+    org.springframework.ai: DEBUG
+    org.hibernate.SQL: DEBUG
