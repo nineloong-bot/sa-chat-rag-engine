@@ -1,14 +1,14 @@
 package com.sa.assistant.service;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Builder;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.document.Document;
-import org.springframework.ai.vectorstore.SearchRequest;
-import org.springframework.ai.vectorstore.VectorStore;
-import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -17,10 +17,9 @@ import java.util.stream.Collectors;
 @Service
 public class RagService {
 
-    private final VectorStore vectorStore;
+    private final EmbeddingClient embeddingClient;
     private final ChatClient chatClient;
 
-    private static final double SIMILARITY_THRESHOLD = 0.75;
     private static final int DEFAULT_TOP_K = 5;
 
     private static final String SYSTEM_PROMPT_TEMPLATE = """
@@ -41,9 +40,16 @@ public class RagService {
             注意：当前文档检索服务不可用，以下回答基于模型自身知识，可能不完全准确。
             """;
 
-    public RagService(VectorStore vectorStore, ChatClient.Builder chatClientBuilder) {
-        this.vectorStore = vectorStore;
+    @Autowired
+    public RagService(EmbeddingClient embeddingClient, ChatClient.Builder chatClientBuilder) {
+        this.embeddingClient = embeddingClient;
         this.chatClient = chatClientBuilder.build();
+    }
+
+    /** Package-private constructor for testing. */
+    RagService(EmbeddingClient embeddingClient, ChatClient chatClient) {
+        this.embeddingClient = embeddingClient;
+        this.chatClient = chatClient;
     }
 
     public RagResponse ask(String question) {
@@ -53,10 +59,10 @@ public class RagService {
     public RagResponse ask(String question, Long documentId, int topK) {
         log.info("RAG query received | question={}, documentId={}, topK={}", question, documentId, topK);
 
-        List<Document> relevantDocs = retrieveFromVectorStore(question, documentId, topK);
+        List<Document> relevantDocs = embeddingClient.search(question, documentId, topK);
 
         if (relevantDocs.isEmpty()) {
-            log.warn("No relevant documents found above threshold | threshold={}", SIMILARITY_THRESHOLD);
+            log.warn("No relevant documents found");
             return buildFallbackResponse(question);
         }
 
@@ -99,30 +105,6 @@ public class RagService {
         }
     }
 
-    private List<Document> retrieveFromVectorStore(String question, Long documentId, int topK) {
-        try {
-            SearchRequest.Builder requestBuilder = SearchRequest.builder()
-                    .query(question)
-                    .topK(topK)
-                    .similarityThreshold(SIMILARITY_THRESHOLD);
-
-            if (documentId != null) {
-                FilterExpressionBuilder filterBuilder = new FilterExpressionBuilder();
-                requestBuilder.filterExpression(
-                        filterBuilder.eq("documentId", String.valueOf(documentId)).build()
-                );
-            }
-
-            List<Document> results = vectorStore.similaritySearch(requestBuilder.build());
-            log.info("Vector search completed | query={}, results={}", question, results.size());
-            return results;
-
-        } catch (Exception e) {
-            log.error("ChromaDB retrieval failed, falling back to direct LLM | error={}", e.getMessage(), e);
-            return List.of();
-        }
-    }
-
     private RagResponse buildFallbackResponse(String question) {
         log.warn("Falling back to direct LLM mode (no RAG context)");
 
@@ -147,6 +129,89 @@ public class RagService {
                     .relevantChunkCount(0)
                     .contextPreview("所有AI服务不可用")
                     .build();
+        }
+    }
+
+    public Flux<StreamEvent> askStream(String question, Long documentId, int topK) {
+        log.info("RAG stream query received | question={}, documentId={}, topK={}", question, documentId, topK);
+
+        List<Document> relevantDocs = embeddingClient.search(question, documentId, topK);
+
+        if (relevantDocs.isEmpty()) {
+            log.warn("No relevant documents found, streaming in fallback mode");
+            return streamFallback(question);
+        }
+
+        String context = relevantDocs.stream()
+                .map(doc -> {
+                    String content = doc.getText();
+                    String docId = String.valueOf(doc.getMetadata().get("documentId"));
+                    String chunkIdx = String.valueOf(doc.getMetadata().get("chunkIndex"));
+                    return "[文档ID:" + docId + " | 分块:" + chunkIdx + "]\n" + content;
+                })
+                .collect(Collectors.joining("\n\n---\n\n"));
+
+        log.info("Stream context assembled | relevantDocs={}, contextLength={}", relevantDocs.size(), context.length());
+
+        String systemPrompt = SYSTEM_PROMPT_TEMPLATE.replace("{context}", context);
+        String contextPreview = context.length() > 200 ? context.substring(0, 200) + "..." : context;
+
+        return chatClient.prompt()
+                .system(systemPrompt)
+                .user(question)
+                .stream()
+                .content()
+                .map(StreamEvent::chunk)
+                .concatWith(Flux.just(
+                        StreamEvent.source("RAG", relevantDocs.size(), contextPreview),
+                        StreamEvent.done()
+                ))
+                .onErrorResume(e -> {
+                    log.error("Stream error in RAG mode | error={}", e.getMessage(), e);
+                    return Flux.just(StreamEvent.error("流式输出出错：" + e.getMessage()));
+                });
+    }
+
+    private Flux<StreamEvent> streamFallback(String question) {
+        return chatClient.prompt()
+                .system(FALLBACK_SYSTEM_PROMPT)
+                .user(question)
+                .stream()
+                .content()
+                .map(StreamEvent::chunk)
+                .concatWith(Flux.just(
+                        StreamEvent.source("FALLBACK", 0, "文档检索不可用，已切换为通用大模型直连模式"),
+                        StreamEvent.done()
+                ))
+                .onErrorResume(e -> {
+                    log.error("Stream error in fallback mode | error={}", e.getMessage(), e);
+                    return Flux.just(StreamEvent.error("大模型服务不可用：" + e.getMessage()));
+                });
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record StreamEvent(
+            String type,
+            String content,
+            String source,
+            Integer relevantChunkCount,
+            String contextPreview,
+            String message
+    ) {
+        public static StreamEvent chunk(String content) {
+            return new StreamEvent("chunk", content, null, null, null, null);
+        }
+
+        public static StreamEvent source(String source, int relevantChunkCount, String contextPreview) {
+            return new StreamEvent("source", null, source, relevantChunkCount, contextPreview, null);
+        }
+
+        public static StreamEvent done() {
+            return new StreamEvent("done", null, null, null, null, null);
+        }
+
+        public static StreamEvent error(String message) {
+            return new StreamEvent("error", null, null, null, null, message);
         }
     }
 

@@ -60,6 +60,8 @@ app:
       redis-ttl: 20m
 
 spring.ai:
+  model:
+    chat: ollama
   openai:
     base-url: ${OPENAI_BASE_URL:https://api.openai.com}
     api-key: ${OPENAI_API_KEY}
@@ -76,6 +78,5 @@ spring.ai:
       client:
         host: http://localhost
         port: 8000
-        key-token: ${CHROMA_TOKEN:sa_chroma_2026}
       collection-name: sa_documents
-      initialize-schema: true
+      initialize-schema: false

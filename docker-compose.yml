@@ -81,15 +81,14 @@ services:
     container_name: sa-chromadb
     restart: unless-stopped
     environment:
-      CHROMA_SERVER_AUTHN_CREDENTIALS: ${CHROMA_TOKEN:-sa_chroma_2026}
-      CHROMA_SERVER_AUTHN_PROVIDER: chromadb.auth.token_authn.TokenAuthenticationServerProvider
       ANONYMIZED_TELEMETRY: FALSE
+      IS_PERSISTENT: TRUE
     ports:
       - "8000:8000"
     volumes:
       - chromadb_data:/chroma/chroma
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v2/heartbeat"]
       interval: 10s
       timeout: 5s
       retries: 5
