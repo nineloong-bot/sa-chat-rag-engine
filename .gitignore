@@ -22,3 +22,7 @@ logs/
 .env
 .env.local
 .env.production
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
