@@ -81,6 +81,16 @@ export interface ChatHistoryUpdateDTO {
   metadata?: Record<string, unknown>;
 }
 
+// ====== Citation (RAG source reference) ======
+export interface Citation {
+  index: number;
+  source: string;
+  chunkCount: number;
+  contextPreview: string;
+  documentName?: string;
+  score?: number;
+}
+
 // ====== Chat Message (UI) ======
 export interface Message {
   id: string;
@@ -89,6 +99,7 @@ export interface Message {
   source?: string;
   relevantChunkCount?: number;
   contextPreview?: string;
+  citations?: Citation[];
   timestamp: number;
 }
 

@@ -1,21 +1,15 @@
 import { useEffect, useState } from 'react';
 import { List, Typography, Tag, Empty, Button, theme } from 'antd';
-import { DeleteOutlined, ReloadOutlined } from '@ant-design/icons';
+import { DeleteOutlined, ReloadOutlined, MessageOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import type { ChatHistory } from '@/types';
-import { listChatHistoryBySession, deleteChatHistory } from '@/api/chatHistory';
+import { listSessions, deleteChatHistory, listChatHistoryBySession } from '@/api/chatHistory';
+import type { SessionSummary } from '@/api/chatHistory';
 import { formatDate } from '@/utils/format';
 
 const { Text, Paragraph } = Typography;
 
-interface SessionGroup {
-  sessionId: string;
-  messages: ChatHistory[];
-  lastUpdated: string;
-}
-
 export default function HistoryPage() {
-  const [sessions, setSessions] = useState<SessionGroup[]>([]);
+  const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { token } = theme.useToken();
@@ -23,26 +17,11 @@ export default function HistoryPage() {
   const loadSessions = async () => {
     setLoading(true);
     try {
-      // In a real app, you'd have an API to list unique sessions.
-      // For now we fetch all sessions from a known list.
-      // This is a simplified approach; users would need a session-list API.
-      const res = await listChatHistoryBySession('_all_');
-      // Group by sessionId
-      const groups = new Map<string, ChatHistory[]>();
-      for (const item of res) {
-        const list = groups.get(item.sessionId) || [];
-        list.push(item);
-        groups.set(item.sessionId, list);
-      }
-      const sessionList: SessionGroup[] = Array.from(groups.entries()).map(([sessionId, messages]) => ({
-        sessionId,
-        messages,
-        lastUpdated: messages[messages.length - 1]?.createdAt || '',
-      }));
-      sessionList.sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime());
-      setSessions(sessionList);
+      const data = await listSessions();
+      setSessions(data);
     } catch {
-      // skip - no sessions yet or API unavailable
+      // API unavailable or no sessions
+      setSessions([]);
     } finally {
       setLoading(false);
     }
@@ -52,12 +31,14 @@ export default function HistoryPage() {
     loadSessions();
   }, []);
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (sessionId: string) => {
     try {
-      await deleteChatHistory(id);
+      // Fetch all messages in this session, then delete each
+      const messages = await listChatHistoryBySession(sessionId);
+      await Promise.all(messages.map((m) => deleteChatHistory(m.id)));
       loadSessions();
     } catch {
-      // skip
+      // ignore
     }
   };
 
@@ -84,6 +65,7 @@ export default function HistoryPage() {
                 background: token.colorBgContainer,
                 marginBottom: 8,
                 border: `1px solid ${token.colorBorderSecondary}`,
+                transition: 'border-color 0.2s',
               }}
               onClick={() => navigate(`/chat/${session.sessionId}`)}
               extra={
@@ -93,16 +75,29 @@ export default function HistoryPage() {
                   icon={<DeleteOutlined />}
                   onClick={(e) => {
                     e.stopPropagation();
-                    session.messages.forEach((m) => handleDelete(m.id));
+                    handleDelete(session.sessionId);
                   }}
                 />
               }
             >
               <List.Item.Meta
+                avatar={
+                  <div style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: '50%',
+                    background: token.colorPrimaryBg,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                    <MessageOutlined style={{ color: token.colorPrimary }} />
+                  </div>
+                }
                 title={
                   <Text strong>
-                    会话: {session.sessionId.slice(0, 8)}...
-                    <Tag style={{ marginLeft: 8 }}>{session.messages.length} 条消息</Tag>
+                    {session.preview || `会话 ${session.sessionId.slice(0, 8)}...`}
+                    <Tag style={{ marginLeft: 8 }}>{session.messageCount} 条消息</Tag>
                   </Text>
                 }
                 description={
@@ -111,7 +106,7 @@ export default function HistoryPage() {
                       ellipsis={{ rows: 1 }}
                       style={{ margin: '4px 0', color: '#666' }}
                     >
-                      {session.messages[session.messages.length - 1]?.content?.slice(0, 100)}
+                      {session.preview || '暂无预览'}
                     </Paragraph>
                     <Text type="secondary" style={{ fontSize: 12 }}>
                       {formatDate(session.lastUpdated)}

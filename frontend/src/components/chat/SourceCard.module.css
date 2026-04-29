@@ -1,0 +1,49 @@
+/* ====== Source Card ====== */
+.sourceCard {
+  margin-top: 8px;
+  padding: 10px 14px;
+  background: var(--ant-color-bg-container, #fafafa);
+  border: 1px solid var(--ant-color-border-secondary, #f0f0f0);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  transition: border-color var(--transition-fast);
+}
+
+.sourceCard:hover {
+  border-color: #1677ff;
+}
+
+.sourceHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.sourcePreview {
+  color: #999;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.sourcePreview--expanded {
+  -webkit-line-clamp: unset;
+}
+
+.expandBtn {
+  background: none;
+  border: none;
+  color: #1677ff;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 0;
+  margin-top: 4px;
+}
+
+.expandBtn:hover {
+  text-decoration: underline;
+}

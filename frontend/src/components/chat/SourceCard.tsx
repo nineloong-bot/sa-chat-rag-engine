@@ -1,45 +1,73 @@
+import { useState, memo } from 'react';
 import { Tag } from 'antd';
-import { LinkOutlined } from '@ant-design/icons';
+import { LinkOutlined, DownOutlined, UpOutlined, ExpandOutlined } from '@ant-design/icons';
+import type { CitationData } from './CitationBadge';
+import styles from './SourceCard.module.css';
 
 interface SourceCardProps {
   source: string;
   relevantChunkCount: number;
   contextPreview?: string;
+  onViewDetail?: (citation: CitationData) => void;
 }
 
-export default function SourceCard({ source, relevantChunkCount, contextPreview }: SourceCardProps) {
-  const colorMap: Record<string, string> = {
-    RAG: 'green',
-    FALLBACK: 'orange',
-    ERROR: 'red',
-  };
+const colorMap: Record<string, string> = {
+  RAG: 'green',
+  FALLBACK: 'orange',
+  ERROR: 'red',
+};
+
+const labelMap: Record<string, string> = {
+  RAG: 'RAG 检索',
+  FALLBACK: '直连模式',
+  ERROR: '错误',
+};
+
+function SourceCard({ source, relevantChunkCount, contextPreview, onViewDetail }: SourceCardProps) {
+  const [expanded, setExpanded] = useState(false);
 
   return (
-    <div style={{
-      marginTop: 8,
-      padding: '8px 12px',
-      background: '#fafafa',
-      borderRadius: 6,
-      fontSize: 12,
-      color: '#666',
-    }}>
-      <div style={{ marginBottom: 4 }}>
-        <LinkOutlined style={{ marginRight: 4 }} />
-        <Tag color={colorMap[source] || 'default'}>{source === 'RAG' ? 'RAG检索' : source === 'FALLBACK' ? '直连模式' : '错误'}</Tag>
+    <div className={styles.sourceCard}>
+      <div className={styles.sourceHeader}>
+        <LinkOutlined style={{ color: '#1677ff' }} />
+        <Tag color={colorMap[source] || 'default'}>
+          {labelMap[source] || source}
+        </Tag>
         {source === 'RAG' && (
-          <span>检索到 {relevantChunkCount} 个相关片段</span>
+          <span style={{ fontSize: 12, color: '#666' }}>
+            检索到 {relevantChunkCount} 个相关片段
+          </span>
+        )}
+        {contextPreview && (
+          <button
+            className={styles.expandBtn}
+            onClick={() => setExpanded(!expanded)}
+            style={{ marginLeft: 'auto' }}
+          >
+            {expanded ? <><UpOutlined /> 收起</> : <><DownOutlined /> 展开</>}
+          </button>
+        )}
+        {onViewDetail && (
+          <button
+            className={styles.expandBtn}
+            onClick={() => onViewDetail({
+              index: 1,
+              source,
+              chunkCount: relevantChunkCount,
+              contextPreview: contextPreview || '',
+            })}
+          >
+            <ExpandOutlined /> 详情
+          </button>
         )}
       </div>
       {contextPreview && (
-        <div style={{
-          maxHeight: 60,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          color: '#999',
-        }}>
+        <div className={`${styles.sourcePreview} ${expanded ? styles['sourcePreview--expanded'] : ''}`}>
           {contextPreview}
         </div>
       )}
     </div>
   );
 }
+
+export default memo(SourceCard);

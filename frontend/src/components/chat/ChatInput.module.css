@@ -1,0 +1,18 @@
+/* ====== Input Area ====== */
+.inputArea {
+  border-top: 1px solid var(--ant-color-border-secondary, #f0f0f0);
+  padding: 16px 24px;
+  background: var(--ant-color-bg-container, #fff);
+}
+
+.inputInner {
+  max-width: var(--chat-max-width);
+  margin: 0 auto;
+}
+
+.inputControls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+}

@@ -13,7 +13,10 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -93,6 +96,35 @@ public class ChatHistoryService {
      */
     public List<ChatHistory> listBySessionId(String sessionId) {
         return chatHistoryRepository.findBySessionIdAndDeletedFalseOrderByCreatedAtAsc(sessionId);
+    }
+
+    /**
+     * 查询所有会话摘要（sessionId、消息数、最后更新时间、首条消息预览）
+     * 按最后更新时间倒序排列
+     */
+    public List<Map<String, Object>> listSessionSummaries() {
+        List<Object[]> rows = chatHistoryRepository.findSessionSummaries();
+        List<Map<String, Object>> result = new java.util.ArrayList<>();
+        for (Object[] row : rows) {
+            Map<String, Object> summary = new LinkedHashMap<>();
+            summary.put("sessionId", row[0]);
+            summary.put("messageCount", row[1]);
+            summary.put("lastUpdated", row[2]);
+            // 查询该 session 的第一条消息作为预览
+            List<ChatHistory> messages = chatHistoryRepository
+                    .findBySessionIdAndDeletedFalseOrderByCreatedAtAsc((String) row[0]);
+            if (!messages.isEmpty()) {
+                // 找第一条 user 消息作为标题
+                String preview = messages.stream()
+                        .filter(m -> "user".equals(m.getRole()))
+                        .map(ChatHistory::getContent)
+                        .findFirst()
+                        .orElse(messages.get(0).getContent());
+                summary.put("preview", preview.length() > 100 ? preview.substring(0, 100) + "..." : preview);
+            }
+            result.add(summary);
+        }
+        return result;
     }
 
     /*

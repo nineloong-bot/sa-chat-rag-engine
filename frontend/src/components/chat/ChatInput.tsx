@@ -3,6 +3,7 @@ import { Input, Button, Space, Select, theme, message } from 'antd';
 import { SendOutlined, ClearOutlined } from '@ant-design/icons';
 import { getCompletedDocuments } from '@/api/document';
 import type { DocumentEntity } from '@/types';
+import styles from './ChatInput.module.css';
 
 interface ChatInputProps {
   onSend: (question: string, documentId?: number) => void;
@@ -42,12 +43,8 @@ export default function ChatInput({ onSend, onClear, disabled }: ChatInputProps)
   }));
 
   return (
-    <div style={{
-      borderTop: `1px solid ${token.colorBorderSecondary}`,
-      padding: '16px 24px',
-      background: token.colorBgContainer,
-    }}>
-      <div style={{ maxWidth: 900, margin: '0 auto' }}>
+    <div className={styles.inputArea} style={{ background: token.colorBgContainer }}>
+      <div className={styles.inputInner}>
         <Space.Compact style={{ width: '100%' }}>
           <Input.TextArea
             value={question}
@@ -59,12 +56,7 @@ export default function ChatInput({ onSend, onClear, disabled }: ChatInputProps)
             style={{ flex: 1 }}
           />
         </Space.Compact>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginTop: 8,
-        }}>
+        <div className={styles.inputControls}>
           <Space>
             <Select
               placeholder={documents.length ? `选择文档 (${documents.length}份)` : '暂无已处理文档'}

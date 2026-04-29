@@ -7,6 +7,10 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const newSession = useChatStore((s) => s.newSession);
+  const sessionId = useChatStore((s) => s.sessionId);
+
+  // Match /chat/:sessionId as the "对话" route
+  const isChatRoute = location.pathname === '/' || location.pathname.startsWith('/chat/');
 
   const items = [
     {
@@ -15,15 +19,17 @@ export default function Sidebar() {
       label: '新建对话',
       onClick: () => {
         newSession();
-        navigate('/');
+        // Read the new sessionId from store after newSession
+        const newId = useChatStore.getState().sessionId;
+        navigate(`/chat/${newId}`);
       },
     },
     { type: 'divider' as const },
     {
-      key: '/',
+      key: 'chat',
       icon: <MessageOutlined />,
       label: '对话',
-      onClick: () => navigate('/'),
+      onClick: () => navigate(`/chat/${sessionId}`),
     },
     {
       key: '/documents',
@@ -39,7 +45,7 @@ export default function Sidebar() {
     },
   ];
 
-  const selectedKey = items.find((i) => i.key === location.pathname)?.key || '/';
+  const selectedKey = isChatRoute ? 'chat' : location.pathname;
 
   return (
     <div style={{ padding: '16px 0' }}>

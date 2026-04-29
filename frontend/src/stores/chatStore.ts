@@ -1,17 +1,17 @@
 import { create } from 'zustand';
 import type { Message } from '@/types';
 import { askRagStream } from '@/api/rag';
-import { createChatHistory } from '@/api/chatHistory';
+import { createChatHistory, listChatHistoryBySession } from '@/api/chatHistory';
 import { generateSessionId } from '@/utils/format';
 
 interface ChatState {
   sessionId: string;
   messages: Message[];
   streaming: boolean;
-  streamingContent: string;
   error: string | null;
 
   newSession: () => void;
+  loadSession: (sessionId: string) => Promise<void>;
   ask: (question: string, documentId?: number) => Promise<void>;
   clearMessages: () => void;
 }
@@ -30,7 +30,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
   sessionId: generateSessionId(),
   messages: [],
   streaming: false,
-  streamingContent: '',
   error: null,
 
   newSession: () => {
@@ -38,9 +37,27 @@ export const useChatStore = create<ChatState>((set, get) => ({
       sessionId: generateSessionId(),
       messages: [],
       streaming: false,
-      streamingContent: '',
       error: null,
     });
+  },
+
+  loadSession: async (sessionId: string) => {
+    set({ sessionId, messages: [], streaming: false, error: null });
+    try {
+      const history = await listChatHistoryBySession(sessionId);
+      const messages: Message[] = history.map((h) => ({
+        id: String(h.id),
+        role: h.role as 'user' | 'assistant',
+        content: h.content,
+        source: h.metadata?.source as string | undefined,
+        relevantChunkCount: h.metadata?.relevantChunkCount as number | undefined,
+        contextPreview: h.metadata?.contextPreview as string | undefined,
+        timestamp: new Date(h.createdAt).getTime(),
+      }));
+      set({ messages });
+    } catch {
+      // session not found or API unavailable
+    }
   },
 
   ask: async (question: string, documentId?: number) => {
@@ -54,7 +71,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({
       messages: [...state.messages, userMsg, aiMsg],
       streaming: true,
-      streamingContent: '',
       error: null,
     });
 
@@ -74,7 +90,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
           onChunk: (chunk) => {
             fullContent += chunk;
             set((s) => ({
-              streamingContent: fullContent,
               messages: s.messages.map((m, i) =>
                 i === s.messages.length - 1 ? { ...m, content: fullContent } : m
               ),
@@ -97,7 +112,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 }
                 return m;
               });
-              return { messages: finalMessages, streaming: false, streamingContent: '' };
+              return { messages: finalMessages, streaming: false };
             });
 
             createChatHistory({
@@ -114,7 +129,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
           onError: (errMsg) => {
             set((s) => ({
               streaming: false,
-              streamingContent: '',
               error: errMsg,
               messages: s.messages.map((m, i) =>
                 i === s.messages.length - 1 ? { ...m, content: m.content || `错误: ${errMsg}` } : m
@@ -126,7 +140,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
     } catch (err) {
       set((s) => ({
         streaming: false,
-        streamingContent: '',
         error: err instanceof Error ? err.message : '请求失败',
         messages: s.messages.map((m, i) =>
           i === s.messages.length - 1 ? { ...m, content: m.content || `错误: ${err instanceof Error ? err.message : '请求失败'}` } : m
@@ -136,6 +149,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   clearMessages: () => {
-    set({ messages: [], error: null, streaming: false, streamingContent: '' });
+    const newId = generateSessionId();
+    set({ messages: [], error: null, streaming: false, sessionId: newId });
   },
 }));

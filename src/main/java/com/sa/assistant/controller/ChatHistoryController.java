@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/chat-history")
@@ -34,6 +35,11 @@ public class ChatHistoryController {
     @GetMapping("/session/{sessionId}")
     public R<List<ChatHistory>> listBySessionId(@PathVariable String sessionId) {
         return R.ok(chatHistoryService.listBySessionId(sessionId));
+    }
+
+    @GetMapping("/sessions")
+    public R<List<Map<String, Object>>> listSessions() {
+        return R.ok(chatHistoryService.listSessionSummaries());
     }
 
     @PutMapping("/{id}")

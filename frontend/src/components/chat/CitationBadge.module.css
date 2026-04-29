@@ -1,0 +1,74 @@
+/* ====== Citation Badge ====== */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #1677ff;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  vertical-align: super;
+  margin: 0 2px;
+  transition: all var(--transition-fast);
+  line-height: 1;
+}
+
+.badge:hover {
+  background: #4096ff;
+  transform: scale(1.15);
+  box-shadow: 0 2px 6px rgba(22, 119, 255, 0.3);
+}
+
+/* ====== Popover Content ====== */
+.popover {
+  max-width: 360px;
+}
+
+.popoverTitle {
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.popoverSource {
+  color: #999;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.popoverPreview {
+  font-size: 13px;
+  color: #444;
+  line-height: 1.6;
+  max-height: 120px;
+  overflow: hidden;
+  position: relative;
+}
+
+.popoverPreview::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 30px;
+  background: linear-gradient(transparent, #fff);
+}
+
+.popoverAction {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #1677ff;
+  cursor: pointer;
+}
+
+.popoverAction:hover {
+  text-decoration: underline;
+}
