@@ -50,7 +50,7 @@ public class ChatHistoryService {
             entity.setModel(dto.getModel());
             entity.setTokenUsage(dto.getTokenUsage());
             entity.setMetadata(dto.getMetadata());
-            entity.setIsDeleted(false);
+            entity.setDeleted(false);
 
             ChatHistory saved = chatHistoryRepository.save(entity);
             log.info("ChatHistory created | id={}, session={}", saved.getId(), saved.getSessionId());
@@ -76,7 +76,7 @@ public class ChatHistoryService {
     @Cacheable(cacheManager = "multiLevelCacheManager", value = CACHE_NAME, key = "#id", unless = "#result == null")
     public ChatHistory getById(Long id) {
         log.debug("ChatHistory DB query | id={}", id);
-        return chatHistoryRepository.findByIdAndIsDeletedFalse(id)
+        return chatHistoryRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new BusinessException(404, "对话记录不存在: " + id));
     }
 
@@ -92,7 +92,7 @@ public class ChatHistoryService {
      * 这里简化处理，直接查 DB。后续可引入列表缓存 + 增量更新策略。
      */
     public List<ChatHistory> listBySessionId(String sessionId) {
-        return chatHistoryRepository.findBySessionIdAndIsDeletedFalseOrderByCreatedAtAsc(sessionId);
+        return chatHistoryRepository.findBySessionIdAndDeletedFalseOrderByCreatedAtAsc(sessionId);
     }
 
     /*
@@ -114,7 +114,7 @@ public class ChatHistoryService {
     public ChatHistory update(Long id, ChatHistoryUpdateDTO dto) {
         String lockKey = LOCK_PREFIX + "update:" + id;
         return distributedLock.executeWithLockWatchDog(lockKey, LOCK_EXPIRE_SECONDS, () -> {
-            ChatHistory entity = chatHistoryRepository.findByIdAndIsDeletedFalse(id)
+            ChatHistory entity = chatHistoryRepository.findByIdAndDeletedFalse(id)
                     .orElseThrow(() -> new BusinessException(404, "对话记录不存在: " + id));
 
             entity.setContent(dto.getContent());
@@ -152,10 +152,10 @@ public class ChatHistoryService {
     public void delete(Long id) {
         String lockKey = LOCK_PREFIX + "delete:" + id;
         distributedLock.executeWithLockWatchDog(lockKey, LOCK_EXPIRE_SECONDS, () -> {
-            ChatHistory entity = chatHistoryRepository.findByIdAndIsDeletedFalse(id)
+            ChatHistory entity = chatHistoryRepository.findByIdAndDeletedFalse(id)
                     .orElseThrow(() -> new BusinessException(404, "对话记录不存在: " + id));
 
-            entity.setIsDeleted(true);
+            entity.setDeleted(true);
             chatHistoryRepository.save(entity);
 
             cacheConsistencyManager.evictAfterUpdate(CACHE_NAME, id);

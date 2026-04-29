@@ -33,6 +33,6 @@ public class ChatHistory extends BaseEntity {
     @Column(columnDefinition = "JSON")
     private Map<String, Object> metadata;
 
-    @Column(nullable = false)
-    private Boolean isDeleted = false;
+    @Column(name = "is_deleted", nullable = false)
+    private boolean deleted = false;
 }

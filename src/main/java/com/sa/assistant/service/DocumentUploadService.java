@@ -2,6 +2,7 @@ package com.sa.assistant.service;
 
 import com.sa.assistant.common.exception.BusinessException;
 import com.sa.assistant.config.RabbitMQConfig;
+import com.sa.assistant.model.dto.DocumentStatus;
 import com.sa.assistant.model.dto.DocumentTaskMessage;
 import com.sa.assistant.model.dto.DocumentTaskStatus;
 import com.sa.assistant.model.entity.DocumentEntity;
@@ -31,14 +32,6 @@ public class DocumentUploadService {
     private final RabbitTemplate rabbitTemplate;
     private final DocumentTaskProgressManager progressManager;
 
-    private static final Set<String> ALLOWED_TYPES = Set.of(
-            "application/pdf",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "application/msword",
-            "text/plain",
-            "text/markdown"
-    );
-
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of(".pdf", ".docx", ".doc", ".txt", ".md");
 
     @Value("${app.upload.dir:/tmp/sa-uploads}")
@@ -58,14 +51,14 @@ public class DocumentUploadService {
                 .fileType(extension.replace(".", "").toUpperCase())
                 .fileSize(file.getSize())
                 .filePath(filePath.toString())
-                .status("PENDING")
+                .status(DocumentStatus.PENDING.name())
                 .build();
         document = documentRepository.save(document);
 
         String taskId = UUID.randomUUID().toString();
         progressManager.initTask(taskId, document.getId(), originalFilename);
 
-        document.setStatus("QUEUED");
+        document.setStatus(DocumentStatus.QUEUED.name());
         documentRepository.save(document);
 
         DocumentTaskMessage message = DocumentTaskMessage.builder()
@@ -90,21 +83,17 @@ public class DocumentUploadService {
         return progressManager.get(taskId);
     }
 
+    /**
+     * 校验上传文件。
+     * 仅通过扩展名判断类型，contentType 可被伪造，不可信赖。
+     */
     private void validateFile(MultipartFile file) {
         if (file.isEmpty()) {
             throw new BusinessException(400, "上传文件不能为空");
         }
 
-        String contentType = file.getContentType();
-        if (contentType != null && !ALLOWED_TYPES.contains(contentType)) {
-            String extension = getFileExtension(file.getOriginalFilename());
-            if (!ALLOWED_EXTENSIONS.contains(extension.toLowerCase())) {
-                throw new BusinessException(400, "不支持的文件类型: " + contentType + "，仅支持 PDF/Word/TXT/MD");
-            }
-        }
-
         String extension = getFileExtension(file.getOriginalFilename());
-        if (!ALLOWED_EXTENSIONS.contains(extension.toLowerCase())) {
+        if (!ALLOWED_EXTENSIONS.contains(extension)) {
             throw new BusinessException(400, "不支持的文件扩展名: " + extension + "，仅支持 .pdf/.docx/.doc/.txt/.md");
         }
     }

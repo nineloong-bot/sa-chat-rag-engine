@@ -58,7 +58,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
       error: null,
     });
 
-    // Save user message to backend
     createChatHistory({
       sessionId,
       role: 'user',
@@ -71,57 +70,57 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       await askRagStream(
         { question, documentId, topK: 5 },
-        (chunk) => {
-          fullContent += chunk;
-          set((s) => ({
-            streamingContent: fullContent,
-            messages: s.messages.map((m, i) =>
-              i === s.messages.length - 1 ? { ...m, content: fullContent } : m
-            ),
-          }));
-        },
-        (source, chunkCount, contextPreview) => {
-          sourceInfo = { source, chunkCount, contextPreview };
-        },
-        () => {
-          // On done: finalize message
-          set((s) => {
-            const finalMessages = s.messages.map((m, i) => {
-              if (i === s.messages.length - 1) {
-                return {
-                  ...m,
-                  content: fullContent,
-                  source: sourceInfo?.source,
-                  relevantChunkCount: sourceInfo?.chunkCount,
-                  contextPreview: sourceInfo?.contextPreview,
-                };
-              }
-              return m;
+        {
+          onChunk: (chunk) => {
+            fullContent += chunk;
+            set((s) => ({
+              streamingContent: fullContent,
+              messages: s.messages.map((m, i) =>
+                i === s.messages.length - 1 ? { ...m, content: fullContent } : m
+              ),
+            }));
+          },
+          onSource: (source, chunkCount, contextPreview) => {
+            sourceInfo = { source, chunkCount, contextPreview };
+          },
+          onDone: () => {
+            set((s) => {
+              const finalMessages = s.messages.map((m, i) => {
+                if (i === s.messages.length - 1) {
+                  return {
+                    ...m,
+                    content: fullContent,
+                    source: sourceInfo?.source,
+                    relevantChunkCount: sourceInfo?.chunkCount,
+                    contextPreview: sourceInfo?.contextPreview,
+                  };
+                }
+                return m;
+              });
+              return { messages: finalMessages, streaming: false, streamingContent: '' };
             });
-            return { messages: finalMessages, streaming: false, streamingContent: '' };
-          });
 
-          // Save assistant message to backend
-          createChatHistory({
-            sessionId,
-            role: 'assistant',
-            content: fullContent,
-            metadata: sourceInfo ? {
-              source: sourceInfo.source,
-              relevantChunkCount: sourceInfo.chunkCount,
-              contextPreview: sourceInfo.contextPreview,
-            } : undefined,
-          }).catch(() => {/* non-critical */});
-        },
-        (errMsg) => {
-          set((s) => ({
-            streaming: false,
-            streamingContent: '',
-            error: errMsg,
-            messages: s.messages.map((m, i) =>
-              i === s.messages.length - 1 ? { ...m, content: m.content || `错误: ${errMsg}` } : m
-            ),
-          }));
+            createChatHistory({
+              sessionId,
+              role: 'assistant',
+              content: fullContent,
+              metadata: sourceInfo ? {
+                source: sourceInfo.source,
+                relevantChunkCount: sourceInfo.chunkCount,
+                contextPreview: sourceInfo.contextPreview,
+              } : undefined,
+            }).catch(() => {/* non-critical */});
+          },
+          onError: (errMsg) => {
+            set((s) => ({
+              streaming: false,
+              streamingContent: '',
+              error: errMsg,
+              messages: s.messages.map((m, i) =>
+                i === s.messages.length - 1 ? { ...m, content: m.content || `错误: ${errMsg}` } : m
+              ),
+            }));
+          },
         }
       );
     } catch (err) {
@@ -129,6 +128,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         streaming: false,
         streamingContent: '',
         error: err instanceof Error ? err.message : '请求失败',
+        messages: s.messages.map((m, i) =>
+          i === s.messages.length - 1 ? { ...m, content: m.content || `错误: ${err instanceof Error ? err.message : '请求失败'}` } : m
+        ),
       }));
     }
   },

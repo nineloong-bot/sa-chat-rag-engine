@@ -1,213 +1,254 @@
-# SA 智能对话助手
+# ChatRAG Engine
 
-> 高性能 Spring AI 对话系统，支持闲聊与文档 RAG 双模式
+> 基于 Spring AI + React 的智能对话助手，支持闲聊与文档 RAG 双模式
 
 [![Java](https://img.shields.io/badge/Java-21-blue.svg)](https://adoptium.net/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4.4-brightgreen.svg)](https://spring.io/projects/spring-boot)
 [![Spring AI](https://img.shields.io/badge/Spring%20AI-1.0.0-brightgreen.svg)](https://spring.io/projects/spring-ai)
+[![React](https://img.shields.io/badge/React-18.3-blue.svg)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Vite-6.0-brightgreen.svg)](https://vitejs.dev/)
 
 ---
 
 ## 项目简介
 
-SA 智能对话助手（SA Intelligent Assistant）是一个基于 **Spring Boot + Spring AI** 的高性能对话系统，独特之处在于支持**双模式切换**：
+ChatRAG Engine 是一个基于 **Spring Boot + Spring AI + React** 的智能对话系统，支持**双模式切换**：
 
 - **闲聊模式**：纯粹的 LLM 对话能力，适用于日常问答、创意生成等场景
 - **RAG 模式**：基于上传文档的检索增强生成，文档经 Apache Tika 解析、向量嵌入后存储于 Chroma 向量数据库，LLM 仅基于检索到的相关内容作答，保证答案准确可溯源
 
-系统面向生产级部署，在缓存、消息队列、分布式锁、可观测性等基础设施层面做了完整的高可用设计。
+系统面向生产级部署，在缓存、消息队列、分布式锁等基础设施层面做了完整的高可用设计。
 
 ---
 
-## 核心架构与技术亮点
+## 技术架构
 
-### 1. Caffeine + Redis 多级缓存架构
-
-系统实现 **L1 Caffeine（本地） → L2 Redis（分布式）** 二级缓存，兼顾低延迟与高扩展性：
+### 后端 (Spring Boot)
 
 ```
-请求 → Caffeine(L1) hit? → 直接返回（亚毫秒级）
-     → Caffeine miss → Redis(L2) hit? → 回填L1后返回（毫秒级）
-     → 皆miss → 查DB → 回填L1+L2 → 返回
+Spring Boot 3.4.4 + Spring AI 1.0.0
+├── 双模型支持：OpenAI GPT-4o / Ollama (qwen2.5:3b)
+├── 向量数据库：Chroma (本地部署)
+├── 多级缓存：Caffeine (L1) + Redis (L2)
+├── 消息队列：RabbitMQ (文档异步解析)
+├── 文档解析：Apache Tika (PDF/Word/TXT)
+└── 数据库：MySQL 8.0
 ```
 
-**关键设计**：
-- `ChatHistory` 缓存策略：L1 3分钟 TTL，L2 20分钟 TTL，通过 `CacheConfig` 独立配置
-- 采用 **Cache-Aside 模式**：写操作不走缓存，通过 `CacheConsistencyManager` 保证写后缓存失效
-- `CacheReconciliationScheduler` 定时任务兜底，解决并发场景下的缓存漂移问题
-- `unless = "#result == null"` 防止缓存穿透（大量请求查询不存在ID时不会污染Redis）
-
-### 2. RabbitMQ + Apache Tika 大文件异步解析
-
-文档上传后经 **RabbitMQ 异步队列**处理，避免同步解析阻塞主线程：
-
-| 组件 | 说明 |
-|------|------|
-| 主队列 `rag.document.queue` | 文档解析任务入口 |
-| 死信队列 `rag.dlx.queue` | 解析失败/超时的消息暂存区，保留 7 天供人工排查 |
-| 三级重试机制 | 消费者侧通过 `x-retry-count` header 追踪重试次数，MAX=3 次后进入 DLX |
-| prefetch=1 | 消费者单次只取一条消息，避免 OOM 时影响多条 |
-| 5 分钟解析超时 | `DocumentParseService` 通过 `CompletableFuture.get(timeout)` 实现 Tika 解析超时控制 |
-| 10MB 内容上限 | Tika `WriteOutContentHandler` 限制单次输出字符数，防止大文件撑爆堆内存 |
-
-### 3. Chroma 向量数据库 RAG 链路
-
-RAG 模式检索链路设计：
+### 前端 (React)
 
 ```
-用户提问 → VectorStore similaritySearch(topK=5, threshold=0.75)
-         → 过滤出 documentId（如指定）
-         → 构建 context prompt → LLM 生成答案
+React 18.3 + TypeScript + Vite 6
+├── UI 组件：Ant Design 5
+├── 状态管理：Zustand 5
+├── HTTP 客户端：Axios
+└── 路由：React Router DOM 7
 ```
 
-**降级策略（Fallback）**：
-- 向量检索异常 → 捕获后返回基于模型自身知识的回答（标注 `source="ERROR"`）
-- 检索结果为空（相似度 < 0.75）→ 返回"未找到相关文档"提示
-- LLM 调用异常 → 返回带错误提示的降级回答
+### 基础设施 (Docker)
 
-### 4. Redis 分布式锁 + WatchDog 续期机制
-
-`DistributedLock` 基于 **Redis SET NX + Lua 脚本**实现：
-
-**解决的问题**：
-- **互斥**：SET NX 保证加锁原子性
-- **解锁安全**：Lua 脚本 `get==requestId 时才 del`，防止误删他人持有的锁
-- **续期安全**：Lua 脚本 `get==requestId 时才 expire`，防止续期已过期/被他人持有的锁
-
-**WatchDog 看门狗机制**：
-- 锁持有期间，每 `expireSeconds/3` 秒自动续期一次
-- 业务执行完闭后显式释放锁，WatchDog 任务自动取消
-- 调度线程池使用**守护线程**，JVM 退出时不会阻塞
-
-典型使用场景：`ChatHistoryService.create()` 在写 DB 前后加锁，保证同一 sessionId 的并发创建请求串行化。
-
-### 5. 可观测性设计
-
-基于 **Spring Boot Actuator + Micrometer** 实现监控埋点：
-
-- **健康检查**：`/actuator/health` 暴露 Redis、RabbitMQ、DB 连接状态
-- **自定义指标**：通过 Micrometer API 埋点记录缓存命中率、文档解析耗时、RAG 查询延迟等业务指标
-- **日志规范**：使用 Slf4j + Lombok `@Slf4j`，关键操作路径记录 INFO 级日志，异常路径记录 WARN/ERROR 并附带上下文参数
+```
+MySQL 8.0 + Redis 7 + RabbitMQ 3.13 + Chroma + Ollama
+```
 
 ---
 
-## 技术栈列表
+## 核心功能
 
-| 层级 | 技术 | 版本 |
-|------|------|------|
-| 基础框架 | Spring Boot | 3.4.4 |
-| AI 集成 | Spring AI | 1.0.0 |
-| LLM | OpenAI GPT-4o | - |
-| 向量数据库 | Chroma | - |
-| 本地缓存 | Caffeine | 3.1.8 |
-| 分布式缓存 | Redis (Spring Data Redis) | - |
-| 消息队列 | RabbitMQ (Spring AMQP) | - |
-| 文档解析 | Apache Tika | 2.9.3 |
-| ORM | Spring Data JPA | - |
-| 数据库 | MySQL | - |
-| JSON | Jackson + JavaTimeModule | - |
-| 对象映射 | MapStruct | 1.6.3 |
-| 注解 | Lombok | - |
-| 可观测性 | Micrometer + Actuator | - |
+### 1. 流式对话 (SSE)
+
+支持实时流式输出，通过 Server-Sent Events (SSE) 逐字返回 AI 回答，提供流畅的对话体验。
+
+### 2. 文档 RAG
+
+- 支持 PDF、Word、TXT、Markdown 等格式文档上传
+- 异步解析：通过 RabbitMQ 队列处理，避免阻塞
+- 向量化存储：基于 Chroma 实现语义检索
+- 可指定文档提问，或在全部文档中检索
+
+### 3. 多级缓存
+
+- L1 Caffeine（本地）：3分钟 TTL
+- L2 Redis（分布式）：20分钟 TTL
+- Cache-Aside 模式 + 定时校准
+
+### 4. 分布式锁
+
+基于 Redis SET NX + Lua 脚本实现，支持 WatchDog 自动续期。
+
+### 5. 文档解析重试机制
+
+- 三级重试 + 死信队列 (DLX)
+- 5 分钟解析超时控制
+- 10MB 内容上限
 
 ---
 
-## 快速开始（Quick Start）
+## 快速开始
 
 ### 环境要求
 
 - JDK 21+
-- Maven 3.8+
-- Redis 6+
-- RabbitMQ 3.x
-- MySQL 8+
-- Chroma 向量数据库（可选，未安装时 RAG 模式降级运行）
+- Node.js 18+
+- Docker Desktop
 
-### 环境变量配置
+### 启动基础设施 (Docker)
 
 ```bash
-# OpenAI API
-export OPENAI_API_KEY=your-api-key
-export OPENAI_BASE_URL=https://api.openai.com  # 可选，默认为官方地址
-export OPENAI_MODEL=gpt-4o                      # 可选，默认为 gpt-4o
-export EMBEDDING_MODEL=text-embedding-3-small    # 可选，默认为 text-embedding-3-small
-
-# Chroma（可选）
-export CHROMA_TOKEN=your-chroma-token           # 可选
+cd /Users/nineloong/codes/ChatRAG\ Engine
+docker-compose up -d
 ```
 
-### 启动步骤
+### 启动后端
 
-1. **克隆项目**
-   ```bash
-   git clone <repository-url>
-   cd sa-intelligent-assistant
-   ```
+```bash
+cd /Users/nineloong/codes/ChatRAG\ Engine
+mvn spring-boot:run -Dspring-boot.run.profiles=dev
+```
 
-2. **配置数据库**
-   ```bash
-   cp src/main/resources/application.yml src/main/resources/application-local.yml
-   # 编辑 application-local.yml，配置 MySQL / Redis / RabbitMQ 连接信息
-   ```
+### 启动前端
 
-3. **构建**
-   ```bash
-   mvn clean package -DskipTests
-   ```
+```bash
+cd /Users/nineloong/codes/ChatRAG\ Engine/frontend
+npm install
+npm run dev
+```
 
-4. **启动**
-   ```bash
-   java -jar target/sa-intelligent-assistant-1.0.0-SNAPSHOT.jar --spring.profiles.active=local
-   ```
+### 访问地址
 
-5. **验证**
-   ```bash
-   curl http://localhost:8080/api/v1/actuator/health
-   ```
+| 服务 | 地址 |
+|------|------|
+| 前端页面 | http://localhost:3000 |
+| 后端 API | http://localhost:8080/api/v1 |
+| 健康检查 | http://localhost:8080/api/v1/actuator/health |
+| RabbitMQ 管理 | http://localhost:15672 |
 
-### API 端点概览
+---
+
+## API 文档
+
+### 对话接口
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| POST | `/rag/ask` | RAG 模式提问（支持指定文档ID） |
+| POST | `/rag/ask` | 同步对话（阻塞式响应） |
+| POST | `/rag/ask/stream` | 流式对话（SSE） |
+
+**请求示例：**
+```json
+POST /rag/ask
+{
+  "question": "你好，请介绍一下自己",
+  "documentId": null,
+  "topK": 5
+}
+```
+
+**响应示例：**
+```json
+{
+  "code": 200,
+  "data": {
+    "answer": "您好！我是一个AI助手...",
+    "source": "RAG",
+    "relevantChunkCount": 3,
+    "contextPreview": "..."
+  }
+}
+```
+
+### 聊天历史
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
 | POST | `/chat/history` | 创建对话记录 |
-| GET | `/chat/history/{id}` | 查询单条对话（含多级缓存） |
+| GET | `/chat/history/{id}` | 查询单条对话 |
 | GET | `/chat/history/session/{sessionId}` | 查询会话下所有对话 |
-| POST | `/document/upload` | 上传文档（触发异步解析） |
-| GET | `/actuator/health` | 健康检查 |
+
+### 文档管理
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/document/upload` | 上传文档 |
+| GET | `/document/list` | 文档列表 |
+| GET | `/document/{id}` | 文档详情 |
+| GET | `/document/{id}/status` | 解析状态 |
 
 ---
 
 ## 项目结构
 
 ```
-src/main/java/com/sa/assistant/
-├── config/                    # 配置层
-│   ├── CacheConfig.java       # Caffeine + Redis 多级缓存配置
-│   ├── RabbitMQConfig.java    # RabbitMQ 队列/交换机/DLX 配置
-│   ├── RedisConfig.java       # RedisTemplate 序列化配置
-│   └── AsyncConfig.java       # 异步任务线程池配置
-├── service/                   # 业务逻辑层
-│   ├── RagService.java        # RAG 检索与生成
-│   ├── ChatHistoryService.java # 对话历史（含缓存注解）
-│   ├── DocumentParseService.java # Tika 文档解析
-│   └── TextChunkService.java  # 文档分块
-├── cache/                     # 缓存基础设施
-│   ├── MultiLevelCacheManager.java
-│   ├── MultiLevelCache.java
-│   ├── CacheConsistencyManager.java
-│   └── CacheReconciliationScheduler.java
-├── common/
-│   └── lock/                  # 分布式锁
-│       ├── DistributedLock.java  # SET NX + Lua + WatchDog
-│       └── LockAcquisitionException.java
-├── controller/                # REST API
-├── model/                     # DTO / Entity / Response
-└── repository/                # JPA Repository
+ChatRAG Engine/
+├── frontend/                      # React 前端
+│   ├── src/
+│   │   ├── api/                   # API 调用
+│   │   ├── components/            # UI 组件
+│   │   │   ├── chat/              # 聊天相关组件
+│   │   │   ├── document/          # 文档相关组件
+│   │   │   └── layout/            # 布局组件
+│   │   ├── pages/                 # 页面
+│   │   ├── stores/                # Zustand 状态管理
+│   │   ├── types/                 # TypeScript 类型
+│   │   └── utils/                 # 工具函数
+│   └── package.json
+│
+├── src/main/java/com/sa/assistant/
+│   ├── config/                    # 配置层
+│   │   ├── CacheConfig.java       # 多级缓存配置
+│   │   ├── RabbitMQConfig.java    # RabbitMQ 配置
+│   │   └── RedisConfig.java       # Redis 配置
+│   │
+│   ├── controller/                # 控制器层
+│   │   ├── RagController.java     # RAG 对话接口
+│   │   ├── ChatHistoryController.java
+│   │   └── DocumentController.java
+│   │
+│   ├── service/                   # 业务逻辑层
+│   │   ├── RagService.java        # RAG 核心服务
+│   │   ├── ChatHistoryService.java
+│   │   ├── DocumentService.java
+│   │   ├── DocumentParseService.java
+│   │   └── TextChunkService.java
+│   │
+│   ├── infra/                     # 基础设施层
+│   │   ├── ChromaVectorStore.java # Chroma 向量库封装
+│   │   └── OllamaEmbeddingClient.java
+│   │
+│   ├── cache/                     # 缓存组件
+│   ├── consumer/                  # RabbitMQ 消费者
+│   ├── common/                    # 公共组件
+│   └── model/                     # 数据模型
+│
+├── docker/                       # Docker 配置
+│   └── mysql/init/                # MySQL 初始化脚本
+├── docker-compose.yml             # 基础设施编排
+└── pom.xml                        # Maven 依赖
 ```
+
+---
+
+## 技术栈
+
+| 层级 | 技术 | 版本 |
+|------|------|------|
+| 后端框架 | Spring Boot | 3.4.4 |
+| AI 集成 | Spring AI | 1.0.0 |
+| 前端框架 | React | 18.3 |
+| 构建工具 | Vite | 6.0 |
+| LLM | Ollama (qwen2.5:3b) / OpenAI | - |
+| Embedding | Ollama (nomic-embed-text) | - |
+| 向量数据库 | Chroma | 1.0.0 |
+| 本地缓存 | Caffeine | 3.1.8 |
+| 分布式缓存 | Redis | 7 |
+| 消息队列 | RabbitMQ | 3.13 |
+| 文档解析 | Apache Tika | 2.9.3 |
+| 数据库 | MySQL | 8.0 |
+| UI 组件 | Ant Design | 5.24 |
+| 状态管理 | Zustand | 5.0 |
 
 ---
 
 ## License
 
-MIT License
+MIT

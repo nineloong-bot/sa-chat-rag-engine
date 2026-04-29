@@ -3,7 +3,7 @@ package com.sa.assistant.controller;
 import com.sa.assistant.common.result.R;
 import com.sa.assistant.model.dto.DocumentTaskStatus;
 import com.sa.assistant.model.entity.DocumentEntity;
-import com.sa.assistant.repository.DocumentRepository;
+import com.sa.assistant.service.DocumentQueryService;
 import com.sa.assistant.service.DocumentTaskProgressManager;
 import com.sa.assistant.service.DocumentUploadService;
 import lombok.RequiredArgsConstructor;
@@ -19,12 +19,11 @@ public class DocumentController {
 
     private final DocumentUploadService uploadService;
     private final DocumentTaskProgressManager progressManager;
-    private final DocumentRepository documentRepository;
+    private final DocumentQueryService documentQueryService;
 
     @GetMapping
     public R<List<DocumentEntity>> listCompleted() {
-        List<DocumentEntity> documents = documentRepository.findByStatusOrderByCreatedAtDesc("COMPLETED");
-        return R.ok(documents);
+        return R.ok(documentQueryService.listCompleted());
     }
 
     @PostMapping("/upload")

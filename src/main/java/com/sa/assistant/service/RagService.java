@@ -1,8 +1,7 @@
 package com.sa.assistant.service;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import lombok.Builder;
-import lombok.Data;
+import com.sa.assistant.model.dto.RagResponse;
+import com.sa.assistant.model.dto.StreamEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.document.Document;
@@ -66,18 +65,9 @@ public class RagService {
             return buildFallbackResponse(question);
         }
 
-        String context = relevantDocs.stream()
-                .map(doc -> {
-                    String content = doc.getText();
-                    String docId = String.valueOf(doc.getMetadata().get("documentId"));
-                    String chunkIdx = String.valueOf(doc.getMetadata().get("chunkIndex"));
-                    return "[文档ID:" + docId + " | 分块:" + chunkIdx + "]\n" + content;
-                })
-                .collect(Collectors.joining("\n\n---\n\n"));
-
-        log.info("Context assembled | relevantDocs={}, contextLength={}", relevantDocs.size(), context.length());
-
+        String context = assembleContext(relevantDocs);
         String systemPrompt = SYSTEM_PROMPT_TEMPLATE.replace("{context}", context);
+        String contextPreview = truncateContext(context, 200);
 
         try {
             String answer = chatClient.prompt()
@@ -92,7 +82,7 @@ public class RagService {
                     .answer(answer)
                     .source("RAG")
                     .relevantChunkCount(relevantDocs.size())
-                    .contextPreview(context.length() > 200 ? context.substring(0, 200) + "..." : context)
+                    .contextPreview(contextPreview)
                     .build();
         } catch (Exception e) {
             log.error("LLM call failed in RAG mode | error={}", e.getMessage(), e);
@@ -100,9 +90,39 @@ public class RagService {
                     .answer("抱歉，大模型服务暂时不可用，请稍后重试。错误信息：" + e.getMessage())
                     .source("ERROR")
                     .relevantChunkCount(relevantDocs.size())
-                    .contextPreview(context.length() > 200 ? context.substring(0, 200) + "..." : context)
+                    .contextPreview(contextPreview)
                     .build();
         }
+    }
+
+    public Flux<StreamEvent> askStream(String question, Long documentId, int topK) {
+        log.info("RAG stream query received | question={}, documentId={}, topK={}", question, documentId, topK);
+
+        List<Document> relevantDocs = embeddingClient.search(question, documentId, topK);
+
+        if (relevantDocs.isEmpty()) {
+            log.warn("No relevant documents found, streaming in fallback mode");
+            return streamFallback(question);
+        }
+
+        String context = assembleContext(relevantDocs);
+        String systemPrompt = SYSTEM_PROMPT_TEMPLATE.replace("{context}", context);
+        String contextPreview = truncateContext(context, 200);
+
+        return chatClient.prompt()
+                .system(systemPrompt)
+                .user(question)
+                .stream()
+                .content()
+                .map(StreamEvent::chunk)
+                .concatWith(Flux.just(
+                        StreamEvent.source("RAG", relevantDocs.size(), contextPreview),
+                        StreamEvent.done()
+                ))
+                .onErrorResume(e -> {
+                    log.error("Stream error in RAG mode | error={}", e.getMessage(), e);
+                    return Flux.just(StreamEvent.error("流式输出出错：" + e.getMessage()));
+                });
     }
 
     private RagResponse buildFallbackResponse(String question) {
@@ -132,46 +152,6 @@ public class RagService {
         }
     }
 
-    public Flux<StreamEvent> askStream(String question, Long documentId, int topK) {
-        log.info("RAG stream query received | question={}, documentId={}, topK={}", question, documentId, topK);
-
-        List<Document> relevantDocs = embeddingClient.search(question, documentId, topK);
-
-        if (relevantDocs.isEmpty()) {
-            log.warn("No relevant documents found, streaming in fallback mode");
-            return streamFallback(question);
-        }
-
-        String context = relevantDocs.stream()
-                .map(doc -> {
-                    String content = doc.getText();
-                    String docId = String.valueOf(doc.getMetadata().get("documentId"));
-                    String chunkIdx = String.valueOf(doc.getMetadata().get("chunkIndex"));
-                    return "[文档ID:" + docId + " | 分块:" + chunkIdx + "]\n" + content;
-                })
-                .collect(Collectors.joining("\n\n---\n\n"));
-
-        log.info("Stream context assembled | relevantDocs={}, contextLength={}", relevantDocs.size(), context.length());
-
-        String systemPrompt = SYSTEM_PROMPT_TEMPLATE.replace("{context}", context);
-        String contextPreview = context.length() > 200 ? context.substring(0, 200) + "..." : context;
-
-        return chatClient.prompt()
-                .system(systemPrompt)
-                .user(question)
-                .stream()
-                .content()
-                .map(StreamEvent::chunk)
-                .concatWith(Flux.just(
-                        StreamEvent.source("RAG", relevantDocs.size(), contextPreview),
-                        StreamEvent.done()
-                ))
-                .onErrorResume(e -> {
-                    log.error("Stream error in RAG mode | error={}", e.getMessage(), e);
-                    return Flux.just(StreamEvent.error("流式输出出错：" + e.getMessage()));
-                });
-    }
-
     private Flux<StreamEvent> streamFallback(String question) {
         return chatClient.prompt()
                 .system(FALLBACK_SYSTEM_PROMPT)
@@ -189,38 +169,20 @@ public class RagService {
                 });
     }
 
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record StreamEvent(
-            String type,
-            String content,
-            String source,
-            Integer relevantChunkCount,
-            String contextPreview,
-            String message
-    ) {
-        public static StreamEvent chunk(String content) {
-            return new StreamEvent("chunk", content, null, null, null, null);
-        }
-
-        public static StreamEvent source(String source, int relevantChunkCount, String contextPreview) {
-            return new StreamEvent("source", null, source, relevantChunkCount, contextPreview, null);
-        }
-
-        public static StreamEvent done() {
-            return new StreamEvent("done", null, null, null, null, null);
-        }
-
-        public static StreamEvent error(String message) {
-            return new StreamEvent("error", null, null, null, null, message);
-        }
+    /**
+     * 将检索到的文档组装为上下文字符串。
+     */
+    private String assembleContext(List<Document> docs) {
+        return docs.stream()
+                .map(doc -> {
+                    String docId = String.valueOf(doc.getMetadata().get("documentId"));
+                    String chunkIdx = String.valueOf(doc.getMetadata().get("chunkIndex"));
+                    return "[文档ID:" + docId + " | 分块:" + chunkIdx + "]\n" + doc.getText();
+                })
+                .collect(Collectors.joining("\n\n---\n\n"));
     }
 
-    @Data
-    @Builder
-    public static class RagResponse {
-        private String answer;
-        private String source;
-        private int relevantChunkCount;
-        private String contextPreview;
+    private String truncateContext(String context, int maxLength) {
+        return context.length() > maxLength ? context.substring(0, maxLength) + "..." : context;
     }
 }

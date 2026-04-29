@@ -1,7 +1,7 @@
 package com.sa.assistant.service;
 
-import com.sa.assistant.service.RagService.RagResponse;
-import com.sa.assistant.service.RagService.StreamEvent;
+import com.sa.assistant.model.dto.RagResponse;
+import com.sa.assistant.model.dto.StreamEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;

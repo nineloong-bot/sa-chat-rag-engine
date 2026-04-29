@@ -5,6 +5,8 @@ import com.sa.assistant.common.ratelimit.RateLimit;
 import com.sa.assistant.common.ratelimit.RateLimitKeyStrategy;
 import com.sa.assistant.common.result.R;
 import com.sa.assistant.model.dto.RagQueryRequest;
+import com.sa.assistant.model.dto.RagResponse;
+import com.sa.assistant.model.dto.StreamEvent;
 import com.sa.assistant.service.RagService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -27,11 +29,11 @@ public class RagController {
 
     @PostMapping("/ask")
     @RateLimit(maxRequests = 20, windowSeconds = 60, keyPrefix = "rag", keyStrategy = RateLimitKeyStrategy.IP)
-    public R<RagService.RagResponse> ask(@Valid @RequestBody RagQueryRequest request) {
-        RagService.RagResponse response = ragService.ask(
+    public R<RagResponse> ask(@Valid @RequestBody RagQueryRequest request) {
+        RagResponse response = ragService.ask(
                 request.getQuestion(),
                 request.getDocumentId(),
-                request.getTopK() != null ? request.getTopK() : 5
+                request.getTopK()
         );
         return R.ok(response);
     }
@@ -42,7 +44,7 @@ public class RagController {
         return ragService.askStream(
                 request.getQuestion(),
                 request.getDocumentId(),
-                request.getTopK() != null ? request.getTopK() : 5
+                request.getTopK()
         ).map(event -> {
             try {
                 return ServerSentEvent.<String>builder()

@@ -1,5 +1,6 @@
 package com.sa.assistant.service;
 
+import com.sa.assistant.model.dto.DocumentStatus;
 import com.sa.assistant.model.dto.DocumentTaskStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,7 +23,7 @@ public class DocumentTaskProgressManager {
         DocumentTaskStatus status = DocumentTaskStatus.builder()
                 .taskId(taskId)
                 .documentId(documentId)
-                .status("PROCESSING")
+                .status(DocumentStatus.PROCESSING.name())
                 .progress(0)
                 .message("任务已创建，等待处理: " + fileName)
                 .build();
@@ -43,7 +44,7 @@ public class DocumentTaskProgressManager {
     public void completeTask(String taskId, int chunkCount) {
         DocumentTaskStatus status = get(taskId);
         if (status != null) {
-            status.setStatus("COMPLETED");
+            status.setStatus(DocumentStatus.COMPLETED.name());
             status.setProgress(100);
             status.setMessage("文档处理完成");
             status.setChunkCount(chunkCount);
@@ -55,7 +56,7 @@ public class DocumentTaskProgressManager {
     public void failTask(String taskId, String errorMessage) {
         DocumentTaskStatus status = get(taskId);
         if (status != null) {
-            status.setStatus("FAILED");
+            status.setStatus(DocumentStatus.FAILED.name());
             status.setMessage("文档处理失败");
             status.setErrorMessage(errorMessage);
             save(taskId, status);

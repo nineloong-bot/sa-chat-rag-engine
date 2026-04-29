@@ -8,9 +8,9 @@ import java.util.Optional;
 
 public interface ChatHistoryRepository extends JpaRepository<ChatHistory, Long> {
 
-    List<ChatHistory> findBySessionIdAndIsDeletedFalseOrderByCreatedAtAsc(String sessionId);
+    List<ChatHistory> findBySessionIdAndDeletedFalseOrderByCreatedAtAsc(String sessionId);
 
-    Optional<ChatHistory> findByIdAndIsDeletedFalse(Long id);
+    Optional<ChatHistory> findByIdAndDeletedFalse(Long id);
 
-    long countBySessionIdAndIsDeletedFalse(String sessionId);
+    long countBySessionIdAndDeletedFalse(String sessionId);
 }
