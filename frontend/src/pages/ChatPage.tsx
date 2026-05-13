@@ -84,7 +84,7 @@ export default function ChatPage() {
             <div style={{ textAlign: 'center', marginTop: 120 }}>
               <Empty description="开始一段新对话" />
               <Text type="secondary" style={{ fontSize: 13 }}>
-                会话 ID: {sessionId.slice(0, 8)}...
+                会话 ID: {sessionId.slice(0, 8)}…
               </Text>
             </div>
           ) : (

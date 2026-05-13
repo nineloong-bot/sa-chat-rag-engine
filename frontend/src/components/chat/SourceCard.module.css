@@ -47,3 +47,8 @@
 .expandBtn:hover {
   text-decoration: underline;
 }
+
+.expandBtn:focus-visible {
+  outline: 2px solid #1677ff;
+  outline-offset: 2px;
+}

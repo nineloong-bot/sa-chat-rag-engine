@@ -45,7 +45,7 @@ function CodeBlock({ language, children }: CodeBlockProps) {
         <button
           className={`${styles.copyBtn} ${copied ? styles['copyBtn--copied'] : ''}`}
           onClick={handleCopy}
-          title="复制代码"
+          aria-label={copied ? '已复制代码' : '复制代码'}
         >
           {copied ? <><CheckOutlined /> 已复制</> : <><CopyOutlined /> 复制</>}
         </button>

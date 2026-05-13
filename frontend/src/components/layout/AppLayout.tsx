@@ -19,11 +19,10 @@ export default function AppLayout() {
           padding: '0 24px',
           display: 'flex',
           alignItems: 'center',
-          fontSize: 18,
-          fontWeight: 600,
-          color: token.colorTextHeading,
         }}>
-          SA 智能对话助手
+          <h1 style={{ fontSize: 18, fontWeight: 600, color: token.colorTextHeading, margin: 0 }}>
+            SA 智能对话助手
+          </h1>
         </Header>
         <Content style={{ overflow: 'auto', padding: 0 }}>
           <Outlet />

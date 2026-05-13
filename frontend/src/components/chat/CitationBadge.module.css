@@ -13,8 +13,13 @@
   cursor: pointer;
   vertical-align: super;
   margin: 0 2px;
-  transition: all var(--transition-fast);
+  transition: background var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
   line-height: 1;
+}
+
+.badge:focus-visible {
+  outline: 2px solid #1677ff;
+  outline-offset: 2px;
 }
 
 .badge:hover {

@@ -43,6 +43,8 @@ function SourceCard({ source, relevantChunkCount, contextPreview, onViewDetail }
             className={styles.expandBtn}
             onClick={() => setExpanded(!expanded)}
             style={{ marginLeft: 'auto' }}
+            aria-label={expanded ? '收起预览' : '展开预览'}
+            aria-expanded={expanded}
           >
             {expanded ? <><UpOutlined /> 收起</> : <><DownOutlined /> 展开</>}
           </button>
@@ -56,6 +58,7 @@ function SourceCard({ source, relevantChunkCount, contextPreview, onViewDetail }
               chunkCount: relevantChunkCount,
               contextPreview: contextPreview || '',
             })}
+            aria-label="查看详情"
           >
             <ExpandOutlined /> 详情
           </button>

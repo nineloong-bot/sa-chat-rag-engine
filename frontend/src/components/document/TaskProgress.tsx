@@ -29,7 +29,7 @@ export default function TaskProgress({ task }: TaskProgressProps) {
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
         <Text strong style={{ fontSize: 14 }}>
-          {task.status === 'COMPLETED' ? `文档 #${task.documentId}` : task.taskId?.slice(0, 8) + '...'}
+          {task.status === 'COMPLETED' ? `文档 #${task.documentId}` : task.taskId?.slice(0, 8) + '…'}
         </Text>
         <Tag color={config.color} icon={config.icon}>{config.label}</Tag>
       </div>

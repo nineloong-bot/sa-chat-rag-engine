@@ -55,10 +55,15 @@
   cursor: pointer;
   font-size: 12px;
   padding: 2px 8px;
-  transition: all var(--transition-fast);
+  transition: color var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+.copyBtn:focus-visible {
+  outline: 2px solid #1677ff;
+  outline-offset: 2px;
 }
 
 .copyBtn:hover {

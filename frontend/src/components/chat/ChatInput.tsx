@@ -46,11 +46,13 @@ export default function ChatInput({ onSend, onClear, disabled }: ChatInputProps)
     <div className={styles.inputArea} style={{ background: token.colorBgContainer }}>
       <div className={styles.inputInner}>
         <Space.Compact style={{ width: '100%' }}>
+          <label htmlFor="chat-input" className="sr-only">输入您的问题</label>
           <Input.TextArea
+            id="chat-input"
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="输入您的问题... (Enter 发送，Shift+Enter 换行)"
+            placeholder="输入您的问题… (Enter 发送，Shift+Enter 换行)"
             autoSize={{ minRows: 1, maxRows: 5 }}
             disabled={disabled}
             style={{ flex: 1 }}
@@ -75,6 +77,7 @@ export default function ChatInput({ onSend, onClear, disabled }: ChatInputProps)
               icon={<ClearOutlined />}
               onClick={() => { onClear(); setQuestion(''); }}
               size="small"
+              aria-label="清空对话"
             >
               清空对话
             </Button>
@@ -83,6 +86,7 @@ export default function ChatInput({ onSend, onClear, disabled }: ChatInputProps)
               icon={<SendOutlined />}
               onClick={handleSend}
               disabled={disabled || !question.trim()}
+              aria-label="发送消息"
             >
               发送
             </Button>

@@ -42,7 +42,9 @@ React 18.3 + TypeScript + Vite 6
 ├── UI 组件：Ant Design 5
 ├── 状态管理：Zustand 5
 ├── HTTP 客户端：Axios
-└── 路由：React Router DOM 7
+├── 路由：React Router DOM 7
+├── Markdown：react-markdown + remark-gfm
+└── 代码高亮：react-syntax-highlighter
 ```
 
 ### 基础设施 (Docker)
@@ -81,6 +83,13 @@ MySQL 8.0 + Redis 7 + RabbitMQ 3.13 + Chroma + Ollama
 - 三级重试 + 死信队列 (DLX)
 - 5 分钟解析超时控制
 - 10MB 内容上限
+
+### 6. 前端无障碍与国际化
+
+- **可访问性**：所有交互元素支持键盘导航和屏幕阅读器
+- **动画适配**：尊重 `prefers-reduced-motion` 用户偏好
+- **国际化**：日期时间使用 `Intl.DateTimeFormat` 格式化
+- **破坏性操作保护**：删除操作需二次确认
 
 ---
 

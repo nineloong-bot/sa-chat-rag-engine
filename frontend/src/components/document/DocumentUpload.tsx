@@ -39,9 +39,9 @@ export default function DocumentUpload({ onUpload, disabled }: DocumentUploadPro
   };
 
   return (
-    <Upload.Dragger {...props} style={{ padding: '24px 0' }}>
+    <Upload.Dragger {...props} style={{ padding: '24px 0' }} aria-label="文档上传区域">
       <p className="ant-upload-drag-icon">
-        <InboxOutlined style={{ fontSize: 48, color: token.colorPrimary }} />
+        <InboxOutlined style={{ fontSize: 48, color: token.colorPrimary }} aria-hidden="true" />
       </p>
       <p className="ant-upload-text" style={{ fontSize: 16 }}>点击或拖拽文件到此区域上传</p>
       <p className="ant-upload-hint" style={{ color: '#999' }}>

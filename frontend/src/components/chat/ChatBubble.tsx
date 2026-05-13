@@ -52,6 +52,7 @@ function ChatBubble({ message, streaming }: ChatBubbleProps) {
           {/* Avatar */}
           <div
             className={`${styles.avatar} ${isUser ? styles['avatar--user'] : styles['avatar--assistant']}`}
+            aria-hidden="true"
           >
             {isUser ? <UserOutlined /> : <RobotOutlined />}
           </div>

@@ -38,9 +38,19 @@ function CitationBadge({ citation, onViewDetail }: CitationBadgeProps) {
       )}
       <div
         className={styles.popoverAction}
+        role="button"
+        tabIndex={0}
+        aria-label="查看完整详情"
         onClick={() => {
           setOpen(false);
           onViewDetail?.(citation);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setOpen(false);
+            onViewDetail?.(citation);
+          }
         }}
       >
         <ExpandOutlined /> 查看完整详情
@@ -57,7 +67,18 @@ function CitationBadge({ citation, onViewDetail }: CitationBadgeProps) {
       placement="top"
       overlayStyle={{ maxWidth: 400 }}
     >
-      <span className={styles.badge} title={`参考来源 [${citation.index}]`}>
+      <span
+        className={styles.badge}
+        role="button"
+        tabIndex={0}
+        aria-label={`参考来源 [${citation.index}]`}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setOpen(!open);
+          }
+        }}
+      >
         {citation.index}
       </span>
     </Popover>

@@ -1,8 +1,14 @@
 export function formatDate(dateStr: string): string {
   if (!dateStr) return '';
   const d = new Date(dateStr);
-  const pad = (n: number) => n.toString().padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(d);
 }
 
 export function formatFileSize(bytes: number): string {

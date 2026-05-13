@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { List, Typography, Tag, Empty, Button, theme } from 'antd';
+import { List, Typography, Tag, Empty, Button, Modal, theme } from 'antd';
 import { DeleteOutlined, ReloadOutlined, MessageOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { listSessions, deleteChatHistory, listChatHistoryBySession } from '@/api/chatHistory';
@@ -32,14 +32,22 @@ export default function HistoryPage() {
   }, []);
 
   const handleDelete = async (sessionId: string) => {
-    try {
-      // Fetch all messages in this session, then delete each
-      const messages = await listChatHistoryBySession(sessionId);
-      await Promise.all(messages.map((m) => deleteChatHistory(m.id)));
-      loadSessions();
-    } catch {
-      // ignore
-    }
+    Modal.confirm({
+      title: '确认删除',
+      content: '确定要删除这条对话记录吗？此操作不可撤销。',
+      okText: '删除',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          const messages = await listChatHistoryBySession(sessionId);
+          await Promise.all(messages.map((m) => deleteChatHistory(m.id)));
+          loadSessions();
+        } catch {
+          // ignore
+        }
+      },
+    });
   };
 
   return (
@@ -73,6 +81,7 @@ export default function HistoryPage() {
                   type="text"
                   danger
                   icon={<DeleteOutlined />}
+                  aria-label="删除对话"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleDelete(session.sessionId);
@@ -96,7 +105,7 @@ export default function HistoryPage() {
                 }
                 title={
                   <Text strong>
-                    {session.preview || `会话 ${session.sessionId.slice(0, 8)}...`}
+                    {session.preview || `会话 ${session.sessionId.slice(0, 8)}…`}
                     <Tag style={{ marginLeft: 8 }}>{session.messageCount} 条消息</Tag>
                   </Text>
                 }
