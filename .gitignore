@@ -9,6 +9,8 @@ target/
 .settings/
 .project
 .classpath
+.claude/
+
 
 # OS
 .DS_Store
@@ -26,3 +28,4 @@ logs/
 # Frontend
 frontend/node_modules/
 frontend/dist/
+frontend/tsconfig.tsbuildinfo
