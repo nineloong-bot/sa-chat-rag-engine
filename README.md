@@ -8,6 +8,8 @@
 [![React](https://img.shields.io/badge/React-18.3-blue.svg)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Vite-6.0-brightgreen.svg)](https://vitejs.dev/)
 
+中文 | [English](./README_EN.md)
+
 ---
 
 ## 项目简介
